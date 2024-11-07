@@ -1,0 +1,4 @@
+*.csv
+allocations/*
+data/*
+predictions/*
