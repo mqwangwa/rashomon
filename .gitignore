@@ -3,3 +3,4 @@ allocations/*
 data/*
 predictions/*
 .*
+_*
