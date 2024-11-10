@@ -33,6 +33,18 @@ class Metrics:
 
 		return np.mean(metric), np.std(metric)
 
+	def count_rashomon_allocations(self):
+		grouped = self.df.groupby(["seed", "iteration"]).count()["allocation_idx"].reset_index()
+		return np.mean(grouped["allocation_idx"]), np.std(grouped["allocation_idx"])
+
+	def count_rashomon_models(self):
+		grouped = self.df.groupby(["seed", "iteration"]).sum()["model_count"].reset_index()
+		return np.mean(grouped["model_count"]), np.std(grouped["model_count"])
+
+	def count_rashomon_models_per_allocation(self):
+		grouped = self.df.groupby(["seed", "iteration"])["model_count"].mean().reset_index()
+		return np.mean(grouped["model_count"]), np.std(grouped["model_count"])
+
 	# Homogenization -- Systemic Exclusion (Number of people never selected)
 	def systemic_exclusion(self):
 		metric = []
