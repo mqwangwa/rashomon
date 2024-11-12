@@ -4,15 +4,10 @@ import numpy as np
 # Note: All metrics calculated separately for each seed/iteration
 class Metrics:
 
-	def __init__(self, df, data, QUALIFICATION_RATE):
+	def __init__(self, df, data, QUALIFICATION_COLUMN):
 		self.df = df
 		self.data = data
-		if QUALIFICATION_RATE==0.50:
-			self.QUALIFICATION_COLUMN = "threshold_50"
-		elif QUALIFICATION_RATE==0.25:
-			self.QUALIFICATION_COLUMN = "threshold_75"
-		elif QUALIFICATION_RATE==0.75:
-			self.QUALIFICATION_COLUMN = "threshold_25"
+		self.QUALIFICATION_COLUMN = QUALIFICATION_COLUMN
 
 
 	# Number of qualified people selected (k')
@@ -59,6 +54,24 @@ class Metrics:
 
 		return np.mean(metric), np.std(metric)
 
+	# Homogenization -- Systemic Exclusion (Number of people never selected)
+	def systemic_exclusion_pairwise(self):
+		metric = []
+		for seed in self.df["seed"].unique():
+			for iteration in self.df["iteration"].unique():
+				allocations = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration), "unselected"].to_list()
+				metric_inner = []
+				for a in allocations:
+					for a2 in allocations:
+						if a == a2:
+							continue
+						systemic_rejection = set(a).intersection(set(a2))
+						metric_inner.append(len(systemic_rejection))
+				metric.append(np.nanmean(metric_inner))
+
+		return np.nanmean(metric), np.nanstd(metric)
+
+
 	# Individual Fairness -- Number of selections across Rashomon allocations, conditional on qualification
 	def selections_by_qualification(self):
 		qualified_avg = []
@@ -84,10 +97,13 @@ class Metrics:
 						else:
 							unqualified_selections[p] += 1
 
-				qualified_avg.append(np.mean(list(qualified_selections.values())))
-				qualified_std.append(np.std(list(qualified_selections.values())))
-				unqualified_avg.append(np.mean(list(unqualified_selections.values())))
-				unqualified_std.append(np.std(list(unqualified_selections.values())))		
+				qualified_selections = np.array(list(qualified_selections.values()))/len(allocations)
+				unqualified_selections = np.array(list(unqualified_selections.values()))/len(allocations)
+
+				qualified_avg.append(np.mean(qualified_selections))
+				qualified_std.append(np.std(qualified_selections))
+				unqualified_avg.append(np.mean(unqualified_selections))
+				unqualified_std.append(np.std(unqualified_selections))
 
 		return np.mean(qualified_avg), np.mean(qualified_std), np.mean(unqualified_avg), np.mean(unqualified_std)
 
@@ -190,6 +206,11 @@ class Metrics:
 				selected = pd.concat([qualified.loc[:k_prime-1], unqualified.loc[:(k-k_prime)-1]])
 				feature_group_num = selected.loc[(test_data[group_col]==0), feature_col].mean()
 				feature_group_denom = selected.loc[(test_data[group_col]==1), feature_col].mean()
-				metric.append(feature_group_num/feature_group_denom)
+				if feature_group_num == 0 and feature_group_denom == 0:
+					metric.append(1)
+				elif feature_group_denom == 0:
+					metric.append(np.nan)
+				else:
+					metric.append(feature_group_num/feature_group_denom)
 		return np.nanmean(metric), np.nanstd(metric)
 

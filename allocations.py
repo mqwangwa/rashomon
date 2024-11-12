@@ -3,7 +3,7 @@ from tqdm import tqdm
 import numpy as np
 
 class Allocations:
-	def __init__(self, df, TEST_SIZE, SELECTION_RATE, QUALIFICATION_RATE, RASHOMON_EPSILON, ITERATIONS_PER_SPLIT):
+	def __init__(self, df, TEST_SIZE, SELECTION_RATE, QUALIFICATION_COLUMN, RASHOMON_EPSILON, ITERATIONS_PER_SPLIT):
 		self.df = df
 		self.TEST_SIZE = TEST_SIZE
 		self.SELECTION_RATE = SELECTION_RATE
@@ -14,12 +14,7 @@ class Allocations:
 		self.NUM_MODELS = len([c for c in self.df.columns if "m_" in c])
 		self.NUM_SPLITS = len(self.df["seed"].unique())
 
-		if QUALIFICATION_RATE==0.50:
-			self.QUALIFICATION_COLUMN = "threshold_50"
-		elif QUALIFICATION_RATE==0.25:
-			self.QUALIFICATION_COLUMN = "threshold_75"
-		elif QUALIFICATION_RATE==0.75:
-			self.QUALIFICATION_COLUMN = "threshold_25"
+		self.QUALIFICATION_COLUMN = QUALIFICATION_COLUMN
 
 	def calculate_rashomon_allocations(self, seed, iteration, df):
 		k_prime = {}
