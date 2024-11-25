@@ -72,6 +72,76 @@ class Metrics:
 		return np.nanmean(metric), np.nanstd(metric)
 
 
+	def entropy(self, probs):
+		e = 0
+		for p in probs:
+			if p > 0 and p < 1:
+				e += p * np.log(p)
+		return -e
+
+
+	def local_homogenization(self):
+		metric = []
+		baseline = []
+		for seed in self.df["seed"].unique():
+			for iteration in self.df["iteration"].unique():
+				selected = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration)&(self.df["allocation_idx"]==0), "selected"].values[0]
+				unselected = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration)&(self.df["allocation_idx"]==0), "unselected"].values[0]
+				people = selected + unselected
+				selected_counts = dict.fromkeys(people, 0)
+
+				n_prime = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration), "n'"].mean()
+				k_prime = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration), "k'"].mean()
+				n = len(people)
+				k = len(selected)
+				qualified_prob = k_prime / n_prime
+				qualified_entropy = self.entropy([qualified_prob, 1 - qualified_prob])
+				unqualified_prob = (k - k_prime) / (n - n_prime)
+				unqualified_entropy = self.entropy([unqualified_prob, 1-unqualified_prob])
+				baseline.append((qualified_entropy * (n_prime / n)) + (unqualified_entropy * ((n-n_prime)/n)))
+				
+				allocations = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration), "selected"].to_list()
+				for a in allocations:
+					for p in a:
+						selected_counts[p] += 1
+
+				selected_counts = {key: self.entropy([value / len(allocations), 1 - (value / len(allocations))]) for key, value in selected_counts.items()}
+				metric.append(np.mean(list(selected_counts.values())))
+
+		return np.mean(metric), np.std(metric), np.mean(baseline), np.std(baseline)
+
+
+	def global_homogenization(self, feature):
+		metric = []
+		baseline = []
+		for seed in self.df["seed"].unique():
+			for iteration in self.df["iteration"].unique():
+				selected = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration)&(self.df["allocation_idx"]==0), "selected"].values[0]
+				unselected = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration)&(self.df["allocation_idx"]==0), "unselected"].values[0]
+				people = selected + unselected
+				test_data = self.data.loc[self.data["person_id"].isin(people)].copy()
+				
+				n = len(people)
+				n_prime = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration), "n'"].mean()
+
+				qualified_people = test_data.loc[test_data[self.QUALIFICATION_COLUMN]==1]
+				qualified_entropy = self.entropy(list(qualified_people[feature].value_counts()/len(qualified_people)))
+				unqualified_people = test_data.loc[test_data[self.QUALIFICATION_COLUMN]==0]
+				unqualified_entropy = self.entropy(list(unqualified_people[feature].value_counts()/len(unqualified_people)))
+				baseline.append((qualified_entropy * (n_prime / n)) + (unqualified_entropy * ((n-n_prime)/n)))
+
+
+				allocations = self.df.loc[(self.df["seed"]==seed)&(self.df["iteration"]==iteration), "selected"].to_list()
+				metric_inner = []
+				for a in allocations:
+					selected_data = test_data.loc[test_data["person_id"].isin(a)].copy()
+					type_probs = list(selected_data[feature].value_counts()/len(selected_data))
+					metric_inner.append(self.entropy(type_probs))
+				metric.append(np.mean(metric_inner))
+		return np.mean(metric), np.std(metric), np.mean(baseline), np.std(baseline)
+
+
+
 	# Individual Fairness -- Number of selections across Rashomon allocations, conditional on qualification
 	def selections_by_qualification(self):
 		qualified_avg = []

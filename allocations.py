@@ -30,11 +30,11 @@ class Allocations:
 			if k_prime[model]/self.k < (best_k_prime/self.k)-self.RASHOMON_EPSILON:
 				continue
 
-			selected = df.loc[df["m_"+str(model)].nlargest(self.k).index, "idx"].tolist()
+			selected = df.loc[df["m_"+str(model)].nlargest(self.k).index, "person_id"].tolist()
 			selected.sort()
 			allocation = tuple(selected)
 			if allocation not in allocations:
-				unselected = [i for i in df["idx"] if i not in selected] 
+				unselected = [i for i in df["person_id"] if i not in selected] 
 				allocation_data.append({
 					"seed":seed,
 					"iteration":iteration,
