@@ -11,7 +11,7 @@ class Allocations:
 		self.ITERATIONS_PER_SPLIT = ITERATIONS_PER_SPLIT
 		self.k = int(self.SELECTION_RATE*self.TEST_SIZE)
 
-		self.NUM_MODELS = len([c for c in self.df.columns if "m_" in c])
+		self.NUM_MODELS = len([c for c in self.df.columns if c.startswith("m_")])
 		self.NUM_SPLITS = len(self.df["seed"].unique())
 
 		self.QUALIFICATION_COLUMN = QUALIFICATION_COLUMN
