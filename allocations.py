@@ -16,33 +16,35 @@ class Allocations:
 
 		self.QUALIFICATION_COLUMN = QUALIFICATION_COLUMN
 
-	def calculate_rashomon_allocations(self, seed, iteration, df):
-		k_prime = {}
+	def calculate_rashomon_allocations(self, seed, iteration, df, perf):
+		best_perf = 1
 		for model in range(1, self.NUM_MODELS+1):
-			allocation = df["m_"+str(model)].nlargest(self.k).index.to_list()
-			k_prime[model] = int(df.loc[allocation, self.QUALIFICATION_COLUMN].sum())
-		best_k_prime = max(k_prime.values())
+			model_perf = float(perf.loc[perf["person_id"]==-1, "m_"+str(model)])
+			if model_perf < best_perf:
+				best_perf = model_perf
 
 		allocations = {}
 		allocation_data = []
 		allocation_idx = 0
 		for model in range(1, self.NUM_MODELS+1):
-			if k_prime[model]/self.k < (best_k_prime/self.k)-self.RASHOMON_EPSILON:
+			if float(perf.loc[perf["person_id"]==-1, "m_"+str(model)]) > best_perf + self.RASHOMON_EPSILON:
 				continue
 
-			selected = df.loc[df["m_"+str(model)].nlargest(self.k).index, "person_id"].tolist()
-			selected.sort()
-			allocation = tuple(selected)
+			selected_idx = df["m_"+str(model)].nlargest(self.k).index.to_list()
+			k_prime = int(df.loc[selected_idx, self.QUALIFICATION_COLUMN].sum())
+			n_prime = int(df[self.QUALIFICATION_COLUMN].sum())
+			selected_people = df.loc[selected_idx, "person_id"].to_list()
+
+			selected_people.sort()
+			allocation = tuple(selected_people)
 			if allocation not in allocations:
-				unselected = [i for i in df["person_id"] if i not in selected] 
 				allocation_data.append({
 					"seed":seed,
 					"iteration":iteration,
 					"allocation_idx":allocation_idx,
-					"selected": selected,
-					"unselected": unselected,
-					"k'": k_prime[model],
-					"n'": df[self.QUALIFICATION_COLUMN].sum()
+					"selected": selected_people,
+					"k'": k_prime,
+					"n'": n_prime,
 				})
 				allocations[allocation] = {"allocation_idx": allocation_idx, "model_count": 1}
 				allocation_idx += 1
@@ -59,11 +61,16 @@ class Allocations:
 		return allocation_data		
 
 	def get_allocations(self):
-		allocation_data = []
+		allocations = []
+		people = []
 		for split in range(self.NUM_SPLITS):
-			split_df = self.df[self.df["seed"]==split].copy()
+			split_df = self.df[(self.df["seed"]==split)&(self.df["person_id"]>=0)].copy()
+			perf_df = self.df[(self.df["seed"]==split)&(self.df["person_id"]<0)].copy()
 
 			for i in range(self.ITERATIONS_PER_SPLIT):
-				allocation_data += self.calculate_rashomon_allocations(split, i, split_df.sample(n=self.TEST_SIZE, random_state=i))
-		allocation_data = pd.DataFrame(allocation_data)
-		return allocation_data
+				people_sample = split_df.sample(n=self.TEST_SIZE, random_state=i)
+				people.append({"seed": split, "iteration": i, "people": people_sample["person_id"].to_list()})
+				allocations += self.calculate_rashomon_allocations(split, i, people_sample, perf_df)
+		people = pd.DataFrame(people)
+		allocations = pd.DataFrame(allocations)
+		return allocations, people
